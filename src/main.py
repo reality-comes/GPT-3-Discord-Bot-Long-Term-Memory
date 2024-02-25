@@ -60,7 +60,7 @@ async def on_ready():
     for c in EXAMPLE_CONVOS:
         messages = []
         for m in c.messages:
-            if m.user == "Winston":
+            if m.user == client.user.name:
                 messages.append(Message(user=client.user.name, text=m.text))
             else:
                 messages.append(m)
@@ -124,8 +124,40 @@ async def on_message(message: DiscordMessage):
         if should_block(guild=message.guild):
             return
 
+        logger.info(f"message.channel: {message.channel}, message.author: {message.author}, client.user: {client.user}, message.content: {message.content}")
+
+        mentioned = False
+
+        # The bot should respond to messages that are replies to it
+        if message.reference is not None:
+            if message.reference.cached_message is None:
+                # Fetching the message
+                #channel = bot.get_channel(message.reference.channel_id)
+                msg = await channel.fetch_message(message.reference.message_id)
+
+            else:
+                msg = message.reference.cached_message
+            
+            if msg.author == client.user:
+                logger.info(f"{msg.author} == {client.user}")
+                mentioned = True
+
+        # Ignore messages unless they are from the channel chat-with-ai or singularity
+        if (str(message.channel).lower() not in ["chat-with-ai", "singularity"]):
+            return
+
+        username = client.user.name.split("#")[0].lower().split(" ")
+        username.append(f"<@{str(client.user.id)}>")
+        for word in username:
+            if word in message.content.lower():
+                mentioned = True
+        # ignore messages unless we are mentioned
+        if (not mentioned):
+            return
+
         # ignore messages from the bot
         if message.author == client.user:
+            logger.info(f"{message.author} == {client.user}")
             return
 
         # save message as embedding, vectorize
