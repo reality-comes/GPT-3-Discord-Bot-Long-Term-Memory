@@ -142,10 +142,6 @@ async def on_message(message: DiscordMessage):
                 logger.info(f"{msg.author} == {client.user}")
                 mentioned = True
 
-        # Ignore messages unless they are from the channel chat-with-ai or singularity
-        if (str(message.channel).lower() not in ["chat-with-ai", "singularity"]):
-            return
-
         username = client.user.name.split("#")[0].lower().split(" ")
         username.append(f"<@{str(client.user.id)}>")
         for word in username:
