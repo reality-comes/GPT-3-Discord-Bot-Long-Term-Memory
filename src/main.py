@@ -150,6 +150,11 @@ async def on_message(message: DiscordMessage):
         if context_notes:
             channel_messages.insert(0, context_notes)
 
+        containsNameInMessage = completion.MY_BOT_NAME.lower() in message.content.lower()
+        isMentionedInMessage = any([ member.id == client.user.id for member in message.mentions])
+        if not containsNameInMessage and not isMentionedInMessage:
+            return
+
 
         # generate the response
         async with channel.typing():
