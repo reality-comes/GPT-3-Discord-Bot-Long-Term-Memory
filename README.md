@@ -32,6 +32,11 @@ This bot uses the [OpenAI Python Library](https://github.com/openai/openai-pytho
     ```
     You should see an invite URL in the console. Copy and paste it into your browser to add the bot to your server.
 
+# Docker Commands
+Build image with `docker build -t discord-gpt .`
+
+Run with `docker run -it --rm --env-file .env --name sillyaibot discord-gpt`
+
 # FAQ
 
 > Why isn't my bot responding to commands?
