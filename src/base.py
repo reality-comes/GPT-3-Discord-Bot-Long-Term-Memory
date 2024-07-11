@@ -46,7 +46,7 @@ class Prompt:
     def render(self):
         return f"\n{SEPARATOR_TOKEN}".join(
             [self.header.render()]
-            + [Message("System", "Example conversations:").render()]
+            # + [Message("System", "Example conversations:").render()]
             + [conversation.render() for conversation in self.examples]
             + [Message("System", "Current conversation:").render()]
             + [self.convo.render()],

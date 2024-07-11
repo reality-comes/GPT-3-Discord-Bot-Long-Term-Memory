@@ -37,6 +37,14 @@ Build image with `docker build -t discord-gpt .`
 
 Run with `docker run -it --rm --env-file .env --name sillyaibot discord-gpt`
 
+# Venv/Systemd setup
+`python3 -m venv venv`
+`source ./venv/bin/activate`
+`pip install -r requirements.txt`
+`touch /etc/systemd/system/trump.service`
+`cp systemd.conf /etc/systemd/system/trump.service`
+`systemctl enable --now trump.service`
+
 # FAQ
 
 > Why isn't my bot responding to commands?

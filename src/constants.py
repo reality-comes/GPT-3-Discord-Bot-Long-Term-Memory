@@ -31,9 +31,9 @@ for s in server_ids:
 BOT_INVITE_URL = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&permissions=328565073920&scope=bot"
 
 SECONDS_DELAY_RECEIVING_MSG = (
-    0  # give a delay for the bot to respond so it can catch multiple messages
+    3  # give a delay for the bot to respond so it can catch multiple messages
 )
-MAX_MESSAGE_HISTORY = 30
+MAX_MESSAGE_HISTORY = 10
 MAX_CHARS_PER_REPLY_MSG = (
     1500  # discord has a 2k limit, we just break message into 1.5k
 )
