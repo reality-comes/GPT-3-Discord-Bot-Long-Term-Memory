@@ -55,9 +55,11 @@ async def generate_completion_response(
         print(rendered)
             
         response = gptClient.chat.completions.create(
-            model="gpt-4o-2024-05-13",  
+            model="gpt-4o",  
             messages=rendered,
-            temperature=0.9,
+            temperature=2.0,
+            frequency_penalty=0.2,
+            presence_penalty=0.5,
         )
         
         reply = response.choices[0].message.content.strip()
