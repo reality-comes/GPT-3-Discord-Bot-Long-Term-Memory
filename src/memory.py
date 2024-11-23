@@ -1,4 +1,6 @@
 import os
+from typing import List
+from src.constants import MAX_MESSAGE_HISTORY
 import openai
 import json
 import numpy as np
@@ -7,6 +9,8 @@ import re
 from time import time,sleep
 from uuid import uuid4
 from datetime import datetime
+from src.base import Message, Prompt, Conversation
+
 
 
 notes_history = []
@@ -82,15 +86,18 @@ def add_notes(notes):
     return notes
 
 
-def load_convo():
+def load_convo() -> List[Message]:
     files = os.listdir('./src/chat_logs')
     files = [i for i in files if '.json' in i]  # filter out any non-JSON files
+    files = sorted(files, reverse=True)
     result = list()
-    for file in files:
+    for file in files[0:MAX_MESSAGE_HISTORY]:
         data = load_json('./src/chat_logs/%s' % file)
-        result.append(data)
-    ordered = sorted(result, key=lambda d: d['timestring'], reverse=False)  # sort them all chronologically
-    return ordered
+        msg = Message(user=data['speaker'], text=data['message'], timestring=data['timestring'], attachments=data.get('attachments'))
+        result.append(msg)
+    # ordered = sorted(result, key=lambda d: d['timestring'], reverse=False)  # sort them all chronologically
+    result = [m for m in result if m.text is not None]
+    return result
 
 def load_context():
     files = os.listdir('./src/chat_logs')

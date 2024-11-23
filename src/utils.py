@@ -11,7 +11,6 @@ import discord
 
 from src.constants import MAX_CHARS_PER_REPLY_MSG
 
-
 def discord_message_to_message(message: DiscordMessage) -> Optional[Message]:
     if message.content:
         return Message(user=message.author.name, text=message.content)

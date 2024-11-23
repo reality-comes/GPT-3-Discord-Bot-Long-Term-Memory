@@ -1,3 +1,4 @@
+import random
 import discord
 from discord import Message as DiscordMessage
 import logging
@@ -11,7 +12,6 @@ from src.base import Message, Conversation
 from src.constants import (
     BOT_INVITE_URL,
     DISCORD_BOT_TOKEN,
-    EXAMPLE_CONVOS,
     MAX_MESSAGE_HISTORY,
     SECONDS_DELAY_RECEIVING_MSG,
 )
@@ -56,15 +56,6 @@ tree = discord.app_commands.CommandTree(client)
 async def on_ready():
     logger.info(f"We have logged in as {client.user}. Invite URL: {BOT_INVITE_URL}")
     completion.MY_BOT_NAME = client.user.name
-    completion.MY_BOT_EXAMPLE_CONVOS = []
-    for c in EXAMPLE_CONVOS:
-        messages = []
-        for m in c.messages:
-            if m.user == "Winston":
-                messages.append(Message(user=client.user.name, text=m.text))
-            else:
-                messages.append(m)
-        completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
 
 # calls for each message
@@ -81,49 +72,31 @@ async def on_message(message: DiscordMessage):
             return
 
         # save message as embedding, vectorize
-        vector = gpt3_embedding(message)
         timestamp = time()
         timestring = timestring = timestamp_to_datetime(timestamp)
         user = message.author.name
-        extracted_message = '%s: %s - %s' % (user, timestring, message.content)
-        info = {'speaker': user, 'timestamp': timestamp,'uuid': str(uuid4()), 'vector': vector, 'message': extracted_message, 'timestring': timestring}
+        extracted_message = message.content
+        info = {
+            'speaker': user,
+            'timestamp': timestamp,
+            'uuid': str(uuid4()),
+            'message': extracted_message,
+            'timestring': timestring,
+        }
+
+        if message.attachments:
+            info['attachments'] = [a.proxy_url for a in message.attachments if a.size < 2_000_000]
+
         filename = 'log_%s_user' % timestamp
         save_json(f'./src/chat_logs/{filename}.json', info)
 
-        # load past conversations
-        history = load_convo()
-
-        # fetch memories (histroy + current input)
-
-        memories = fetch_memories(vector, history, 5)
-
-        # create notes from memories
-
-        current_notes, vector = summarize_memories(memories)
-
-        print(current_notes)
-        print('-------------------------------------------------------------------------------')
-
-        add_notes(current_notes)
-
-        if len(notes_history) >= 2:
-            print(notes_history[-2])
-        else:
-            print("The list does not have enough elements to access the second-to-last element.")
-
-
-        # create a Message object from the notes
-        message_notes = Message(user='memories', text=current_notes)
+        containsNameInMessage = completion.MY_BOT_NAME.lower() in message.content.lower()
+        isMentionedInMessage = any([ member.id == client.user.id for member in message.mentions])
+        shouldRandomlyRespond = random.random() < 0.01 # 1% chance to respond randomly
+        if not containsNameInMessage and not isMentionedInMessage and not shouldRandomlyRespond:
+            return
         
         # create a Message object from the notes_history for context
-
-        context_notes = None
-        
-        if len(notes_history) >= 2:
-            context_notes = Message(user='context', text=notes_history[-2])
-        else:
-            print("The list does not have enough elements create context")
-
 
         # wait a bit in case user has more messages
         if SECONDS_DELAY_RECEIVING_MSG > 0:
@@ -140,33 +113,22 @@ async def on_message(message: DiscordMessage):
             f"channel message to process - {message.author}: {message.content[:50]} - {channel.name} {channel.jump_url}"
         )
 
-        channel_messages = [
-            discord_message_to_message(message)
-            async for message in channel.history(limit=MAX_MESSAGE_HISTORY)
-        ]
-        channel_messages = [x for x in channel_messages if x is not None]
+        # load past conversations
+        history = load_convo()
+
+        channel_messages = [x for x in history if x is not None]
         channel_messages.reverse()
-        channel_messages.insert(0, message_notes)
-        if context_notes:
-            channel_messages.insert(0, context_notes)
-
-        containsNameInMessage = completion.MY_BOT_NAME.lower() in message.content.lower()
-        isMentionedInMessage = any([ member.id == client.user.id for member in message.mentions])
-        if not containsNameInMessage and not isMentionedInMessage:
-            return
-
 
         # generate the response
         async with channel.typing():
             response_data = await generate_completion_response(
                 messages=channel_messages, user=message.author
             )
-            vector = gpt3_response_embedding(response_data)
             timestamp = time()
             timestring = timestring = timestamp_to_datetime(timestamp)
             user = client.user.name
-            extracted_message = '%s: %s - %s' % (user, timestring, response_data.reply_text)
-            info = {'speaker': user, 'timestamp': timestamp,'uuid': str(uuid4()), 'vector': vector, 'message': extracted_message, 'timestring': timestring}
+            extracted_message = response_data.reply_text
+            info = {'speaker': 'bot', 'timestamp': timestamp,'uuid': str(uuid4()), 'message': extracted_message, 'timestring': timestring}
             filename = 'log_%s_bot' % timestamp
             save_json(f'./src/chat_logs/{filename}.json', info)
 

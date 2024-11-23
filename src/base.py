@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 from typing import Optional, List
+from src.constants import (
+    DISCORD_CLIENT_ID,
+    BOT_NAME
+)
 
 SEPARATOR_TOKEN = "<|endoftext|>"
 
@@ -8,12 +12,36 @@ SEPARATOR_TOKEN = "<|endoftext|>"
 class Message:
     user: str
     text: Optional[str] = None
+    timestring: Optional[str] = None
+    attachments: Optional[List[str]] = None
 
-    def render(self):
-        result = self.user + ":"
-        if self.text is not None:
-            result += " " + self.text
-        return result
+    def render(self, system=False):
+        text = self.text if self.text else ""
+        text = text.replace(f"<@{DISCORD_CLIENT_ID}>", f"@{BOT_NAME}")
+        obj = {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"{self.user} ({self.timestring if self.timestring else ''}) :  {text}"
+                }
+            ]
+        }
+
+        if self.attachments:
+            obj["content"].extend([
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": img
+                    }
+                } for img in self.attachments
+            ])
+
+        if system:
+            obj["role"] = "system"
+
+        return obj
 
 
 @dataclass
@@ -25,29 +53,15 @@ class Conversation:
         return self
 
     def render(self):
-        return f"\n{SEPARATOR_TOKEN}".join(
-            [message.render() for message in self.messages]
-        )
-
-
-@dataclass(frozen=True)
-class Config:
-    name: str
-    instructions: str
-    example_conversations: List[Conversation]
+        return [m.render() for m in self.messages]
 
 
 @dataclass(frozen=True)
 class Prompt:
     header: Message
-    examples: List[Conversation]
     convo: Conversation
 
     def render(self):
-        return f"\n{SEPARATOR_TOKEN}".join(
-            [self.header.render()]
-            # + [Message("System", "Example conversations:").render()]
-            + [conversation.render() for conversation in self.examples]
-            + [Message("System", "Current conversation:").render()]
-            + [self.convo.render()],
-        )
+        return [
+            self.header.render(system=True),
+        ] + self.convo.render()
