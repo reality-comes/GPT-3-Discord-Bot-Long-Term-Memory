@@ -103,7 +103,7 @@ async def process_response(
         else:
             shorter_response = split_into_shorter_messages(reply_text)
             for r in shorter_response:
-                sent_message = await channel.send(r)
+                sent_message = await channel.send(r, allowed_mentions=discord.AllowedMentions(users=True))
 
     elif status is CompletionResult.INVALID_REQUEST:
         await channel.send(
