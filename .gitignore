@@ -6,3 +6,4 @@ __pycache__/
 src/notes/*
 src/memories/*
 src/chat_logs/*
+db.sqlite3

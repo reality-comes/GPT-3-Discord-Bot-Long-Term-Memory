@@ -1,29 +1,29 @@
 from enum import Enum
 from dataclasses import dataclass
 import openai
-import json
 from typing import Optional, List
+
+from src.botType import GPTDiscordClient
+from src.db import db
 from src.constants import (
-    BOT_INSTRUCTIONS,
-    BOT_NAME,
+    DEFAULT_MODEL,
+    DEFAULT_BOT_NAME,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_FREQUENCY_PENALTY,
+    DEFAULT_PRESENCE_PENALTY,
+    BOT_DEFAULT_PROMPT,
+    BOT_POST_INSTRUCTIONS,
 )
 import discord
 from src.base import Message, Prompt, Conversation
 from src.utils import split_into_shorter_messages, logger
-from datetime import datetime
-from src.memory import (
-    gpt3_response_embedding, 
-    save_json,
-    timestamp_to_datetime
-    )
 
 from uuid import uuid4
 from time import time
 
-
-MY_BOT_NAME = BOT_NAME
-
 gptClient = openai.Client()
+
+BOT_NAME = DEFAULT_BOT_NAME
 
 class CompletionResult(Enum):
     OK = 0
@@ -38,28 +38,35 @@ class CompletionData:
     reply_text: Optional[str]
     status_text: Optional[str]
 
-
 async def generate_completion_response(
-    messages: List[Message], user: str
+    messages: List[Message], bot: GPTDiscordClient
 ) -> CompletionData:
     try:
+        conn = bot.db
+        personality_prompt = db.get_config(conn, "prompt", default=BOT_DEFAULT_PROMPT)
+        full_prompt = f"{personality_prompt}\n{BOT_POST_INSTRUCTIONS}"
+
         prompt = Prompt(
             header=Message(
-                "System", f"Instructions for {MY_BOT_NAME}: {BOT_INSTRUCTIONS}"
+                "System", f"Instructions: {full_prompt}"
             ),
-            convo=Conversation(messages),
+            convo=Conversation(messages, bot.BOT_NAME),
         )
 
         rendered = prompt.render()
 
         print(rendered)
-            
+        model = db.get_config(conn, "model", DEFAULT_MODEL)
+        temperature = db.get_float_config(conn, "temperature", default=DEFAULT_TEMPERATURE)
+        frequency_penalty = db.get_float_config(conn, "frequency_penalty", default=DEFAULT_FREQUENCY_PENALTY)
+        presence_penalty = db.get_float_config(conn, "presence_penalty", default=DEFAULT_PRESENCE_PENALTY)
+
         response = gptClient.chat.completions.create(
-            model="gpt-4o",  
             messages=rendered,
-            temperature=1.1,
-            frequency_penalty=0.1,
-            presence_penalty=0.1,
+            model=model,
+            temperature=temperature,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
         )
         
         reply = response.choices[0].message.content.strip()
@@ -69,7 +76,8 @@ async def generate_completion_response(
         )
 
     except openai.BadRequestError as e:
-        if "This model's maximum context length" in e.user_message:
+        
+        if hasattr(e, 'user_message') and "This model's maximum context length" in e.user_message:
             return CompletionData(
                 status=CompletionResult.TOO_LONG, reply_text=None, status_text=str(e)
             )

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from time import time
 from typing import Optional, List
 from src.constants import (
     DISCORD_CLIENT_ID,
-    BOT_NAME
+    DEFAULT_BOT_NAME
 )
 
 SEPARATOR_TOKEN = "<|endoftext|>"
@@ -13,11 +14,12 @@ class Message:
     user: str
     text: Optional[str] = None
     timestring: Optional[str] = None
+    timestamp: Optional[int] = int(time())
     attachments: Optional[List[str]] = None
 
-    def render(self, system=False):
+    def render(self, system=False, bot_name=DEFAULT_BOT_NAME):
         text = self.text if self.text else ""
-        text = text.replace(f"<@{DISCORD_CLIENT_ID}>", f"@{BOT_NAME}")
+        text = text.replace(f"<@{DISCORD_CLIENT_ID}>", f"@{bot_name}")
         obj = {
             "role": "user",
             "content": [
@@ -47,13 +49,14 @@ class Message:
 @dataclass
 class Conversation:
     messages: List[Message]
+    bot_name: str
 
     def prepend(self, message: Message):
         self.messages.insert(0, message)
         return self
 
     def render(self):
-        return [m.render() for m in self.messages]
+        return [m.render(bot_name=self.bot_name) for m in self.messages]
 
 
 @dataclass(frozen=True)

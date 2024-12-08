@@ -45,3 +45,9 @@ def should_block(guild: Optional[discord.Guild]) -> bool:
         logger.info(f"Guild {guild} not allowed")
         return True
     return False
+
+
+def should_deterministically_respond(message: DiscordMessage, bot_name, bot_id) -> bool:
+    containsNameInMessage = bot_name.lower() in message.content.lower()
+    isMentionedInMessage = any([ member.id == bot_id for member in message.mentions])
+    return containsNameInMessage or isMentionedInMessage 

@@ -6,12 +6,17 @@ import yaml
 from typing import Dict, List
 
 load_dotenv()
-print(os.environ["DISCORD_BOT_TOKEN"])
+
+@dataclass(frozen=True)
+class Presets:
+    trump: str
+    charlie: str
 
 @dataclass(frozen=True)
 class Config:
     name: str
-    instructions: str
+    presets: Presets
+    postInstructions: str
 
 
 # load config.yaml
@@ -20,8 +25,8 @@ CONFIG: Config = dacite.from_dict(
     Config, yaml.safe_load(open(os.path.join(SCRIPT_DIR, "config.yaml"), "r"))
 )
 
-BOT_NAME = CONFIG.name
-BOT_INSTRUCTIONS = CONFIG.instructions
+DEFAULT_BOT_NAME = CONFIG.name
+BOT_POST_INSTRUCTIONS = CONFIG.postInstructions
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_CLIENT_ID = os.environ["DISCORD_CLIENT_ID"]
@@ -42,3 +47,16 @@ MAX_MESSAGE_HISTORY = 15
 MAX_CHARS_PER_REPLY_MSG = (
     1500  # discord has a 2k limit, we just break message into 1.5k
 )
+# time in seconds - messages older than this will be ignored when processing
+MAX_MESSAGE_TIME_DELTA = 60 * 60 * 3  # 3 hours
+
+DB_FILE = os.path.join(SCRIPT_DIR, "..", "db.sqlite3")
+
+# DEFAULTS
+DEFAULT_MODEL = "gpt-4o"
+DEFAULT_TEMPERATURE = 1.1
+DEFAULT_FREQUENCY_PENALTY = 0.1
+DEFAULT_PRESENCE_PENALTY = 0.1
+BOT_DEFAULT_PROMPT = CONFIG.presets.trump
+
+PROMPT_PRESET_KEYS = CONFIG.presets.__dict__.keys()

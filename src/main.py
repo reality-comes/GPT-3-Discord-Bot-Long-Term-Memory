@@ -1,6 +1,12 @@
 import random
 import discord
-from discord import Message as DiscordMessage
+
+from discord import  (
+    Message as DiscordMessage,
+  )
+
+from discord.ext import commands
+
 import logging
 import asyncio
 import json
@@ -10,36 +16,28 @@ from time import time
 from datetime import datetime
 from src.base import Message, Conversation
 from src.constants import (
+    ALLOWED_SERVER_IDS,
     BOT_INVITE_URL,
+    DEFAULT_BOT_NAME,
     DISCORD_BOT_TOKEN,
-    MAX_MESSAGE_HISTORY,
     SECONDS_DELAY_RECEIVING_MSG,
 )
+import atexit
 
 from src.utils import (
     logger,
     should_block,
     is_last_message_stale,
-    discord_message_to_message,
+    should_deterministically_respond,
 )
+from src.botType import GPTDiscordClient
 from src import completion
 from src.completion import generate_completion_response, process_response
 from src.memory import (
-    gpt3_embedding,
-    gpt3_response_embedding, 
     save_json, 
     load_convo,
-    add_notes,
-    notes_history,
-    fetch_memories,
-    summarize_memories,
-    load_memory,
-    load_context,
-    open_file,
-    gpt3_completion,
     timestamp_to_datetime
 )
-
 
 logging.basicConfig(
     format="[%(asctime)s] [%(filename)s:%(lineno)d] %(message)s", level=logging.INFO
@@ -48,15 +46,14 @@ logging.basicConfig(
 intents = discord.Intents.default()
 intents.message_content = True
 
-client = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(client)
 
+client = GPTDiscordClient(command_prefix=[], intents=intents)
 
 @client.event
 async def on_ready():
     logger.info(f"We have logged in as {client.user}. Invite URL: {BOT_INVITE_URL}")
-    completion.MY_BOT_NAME = client.user.name
-    await tree.sync()
+    completion.BOT_NAME = client.user.name
+
 
 # calls for each message
 @client.event
@@ -68,11 +65,11 @@ async def on_message(message: DiscordMessage):
             return
 
         # ignore messages from the bot
-        if message.author == client.user:
+        if message.author == client.user or message.author.bot:
             return
 
         # save message as embedding, vectorize
-        timestamp = time()
+        timestamp = int(time())
         timestring = timestring = timestamp_to_datetime(timestamp)
         user = message.author.name
         extracted_message = message.content
@@ -87,26 +84,30 @@ async def on_message(message: DiscordMessage):
         if message.attachments:
             info['attachments'] = [a.proxy_url for a in message.attachments if a.size < 2_000_000]
 
+        logger.info(
+            f"incoming channel message to process - {message.author.nick}: {message.content[:50]}"
+        )
+
         filename = 'log_%s_user' % timestamp
         save_json(f'./src/chat_logs/{filename}.json', info)
 
-        containsNameInMessage = completion.MY_BOT_NAME.lower() in message.content.lower()
-        isMentionedInMessage = any([ member.id == client.user.id for member in message.mentions])
+        # check if bot should respond
         shouldRandomlyRespond = random.random() < 0.01 # 1% chance to respond randomly
-        if not containsNameInMessage and not isMentionedInMessage and not shouldRandomlyRespond:
+        should_respond = should_deterministically_respond(message, client.BOT_NAME, client.user.id) or shouldRandomlyRespond or client.should_respond_next
+        if not should_respond:
             return
         
-        # create a Message object from the notes_history for context
-
         # wait a bit in case user has more messages
         if SECONDS_DELAY_RECEIVING_MSG > 0:
+            client.should_respond_next = True
             await asyncio.sleep(SECONDS_DELAY_RECEIVING_MSG)
             if is_last_message_stale(
                 interaction_message=message,
                 last_message=channel.last_message,
                 bot_id=client.user.id,
             ):
-                # there is another message, so ignore this one
+                # there is another message, so ignore this one, but let's make sure we still respond
+                logger.info(f"last message is stale, but set response flag")
                 return
 
         logger.info(
@@ -122,10 +123,10 @@ async def on_message(message: DiscordMessage):
         # generate the response
         async with channel.typing():
             response_data = await generate_completion_response(
-                messages=channel_messages, user=message.author
+                messages=channel_messages, bot=client
             )
-            timestamp = time()
-            timestring = timestring = timestamp_to_datetime(timestamp)
+            timestamp = int(time())
+            timestring = timestamp_to_datetime(timestamp)
             user = client.user.name
             extracted_message = response_data.reply_text
             info = {'speaker': 'bot', 'timestamp': timestamp,'uuid': str(uuid4()), 'message': extracted_message, 'timestring': timestring}
@@ -137,8 +138,16 @@ async def on_message(message: DiscordMessage):
         await process_response(
             channel=message.channel, user=message.author, response_data=response_data
         )
+        client.should_respond_next = False
+        logger.info(f"unsetting response flag")
     except Exception as e:
         logger.exception(e)
 
 
-client.run(DISCORD_BOT_TOKEN)
+def exit_handler():
+    logger.info("Exiting")
+    client.db.close()
+
+if __name__ == "__main__":
+    atexit.register(exit_handler)
+    client.run(DISCORD_BOT_TOKEN)
